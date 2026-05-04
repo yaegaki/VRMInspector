@@ -3,6 +3,7 @@
 VRM Inspector is a browser-based tool for inspecting VRM models.
 
 It supports viewing metadata, textures, materials, expressions, and bone structure, as well as loading and playing VRMA animations.
+It can also load multiple VRM models at once, reorder them, adjust their spacing, and inspect each model individually.
 
 Try it here: https://yaegaki.github.io/VRMInspector/
 
