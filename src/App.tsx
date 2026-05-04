@@ -167,6 +167,18 @@ function App() {
     }
   }, [])
 
+  useEffect(() => {
+    sceneRef.current?.setDebugMode(debugViewMode)
+  }, [debugViewMode])
+
+  useEffect(() => {
+    sceneRef.current?.setSpringBoneHelpersVisible(showSpringBones)
+  }, [showSpringBones])
+
+  useEffect(() => {
+    sceneRef.current?.setColliderHelpersVisible(showColliders)
+  }, [showColliders])
+
   function handleFileSelection(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
     if (!file) {
@@ -189,17 +201,14 @@ function App() {
 
   function handleDebugViewModeChange(mode: DebugViewMode) {
     setDebugViewMode(mode)
-    sceneRef.current?.setDebugMode(mode)
   }
 
   function handleSpringBonesVisibleChange(checked: boolean) {
     setShowSpringBones(checked)
-    sceneRef.current?.setSpringBoneHelpersVisible(checked)
   }
 
   function handleCollidersVisibleChange(checked: boolean) {
     setShowColliders(checked)
-    sceneRef.current?.setColliderHelpersVisible(checked)
   }
 
   function handleAnimationPlaybackToggle() {

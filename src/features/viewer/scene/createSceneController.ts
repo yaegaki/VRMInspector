@@ -270,6 +270,8 @@ export function createSceneController(container: HTMLDivElement): SceneControlle
       animationMixer = result.animationMixer
       initialBoneTransforms = result.initialBoneTransforms
       boneController.clearSelection()
+      applyDebugMode(currentDebugMode)
+      applyHelperVisibility()
 
       return result.vrm
     },
