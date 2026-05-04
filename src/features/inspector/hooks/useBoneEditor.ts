@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useRef, useState, type PointerEvent as ReactPointerEvent, type RefObject } from 'react'
+import { useCallback, useEffect, useEffectEvent, useRef, useState, type PointerEvent as ReactPointerEvent, type RefObject } from 'react'
 import type { SceneController, BoneTransform, BoneTransformSpace } from '../../viewer/types'
 
 export function useBoneEditor(sceneRef: RefObject<SceneController | null>) {
@@ -49,11 +49,11 @@ export function useBoneEditor(sceneRef: RefObject<SceneController | null>) {
     }
   }, [boneTransformSpace, selectedBoneKey])
 
-  function resetSelection() {
+  const resetSelection = useCallback(() => {
     setSelectedBoneKey(null)
     setSelectedBoneTransform(null)
     selectedBoneTransformRef.current = null
-  }
+  }, [])
 
   function applyBoneTransform(nextTransform: BoneTransform) {
     const appliedTransform = sceneRef.current?.setSelectedBoneTransform(

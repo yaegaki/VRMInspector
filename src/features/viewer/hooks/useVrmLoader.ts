@@ -1,4 +1,4 @@
-import { startTransition, useRef, useState, type RefObject } from 'react'
+import { startTransition, useMemo, useRef, useState, type RefObject } from 'react'
 import type {
   LoadedAnimationSource,
   LoadedAnimationState,
@@ -7,23 +7,43 @@ import type {
 } from '../types'
 import { inspectVRM, type InspectorData } from '../../../lib/vrmInspector'
 
-type UseVrmLoaderOptions = {
-  sceneRef: RefObject<SceneController | null>
-  onVrmLoaded: (inspector: InspectorData) => void
+export type InspectorModel = {
+  modelId: string
+  inspector: InspectorData
 }
 
-export function useVrmLoader({ sceneRef, onVrmLoaded }: UseVrmLoaderOptions) {
+type UseVrmLoaderOptions = {
+  sceneRef: RefObject<SceneController | null>
+}
+
+export function useVrmLoader({ sceneRef }: UseVrmLoaderOptions) {
   const loadedAnimationSourceRef = useRef<LoadedAnimationSource | null>(null)
-  const [inspector, setInspector] = useState<InspectorData | null>(null)
+  const [models, setModels] = useState<InspectorModel[]>([])
+  const [selectedModelId, setSelectedModelId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [loadError, setLoadError] = useState<LoadErrorState | null>(null)
   const [loadedAnimation, setLoadedAnimation] = useState<LoadedAnimationState | null>(null)
 
-  async function loadVrmFile(file: File) {
+  const inspector = useMemo(
+    () => models.find((model) => model.modelId === selectedModelId)?.inspector ?? null,
+    [models, selectedModelId],
+  )
+
+  async function loadVrmFile(file: File, options?: { append?: boolean }) {
+    await loadVrmFiles([file], options)
+  }
+
+  async function loadVrmFiles(files: File[], options?: { append?: boolean }) {
     if (!sceneRef.current) {
       return
     }
 
+    const vrmFiles = files.filter((file) => file.name.toLowerCase().endsWith('.vrm'))
+    if (!vrmFiles.length) {
+      return
+    }
+
+    const append = options?.append === true
     const loadStartedAt = performance.now()
     setIsLoading(true)
     setLoadError(null)
@@ -31,33 +51,80 @@ export function useVrmLoader({ sceneRef, onVrmLoaded }: UseVrmLoaderOptions) {
     try {
       const rememberedAnimationSource = loadedAnimationSourceRef.current
       const rememberedPlaybackState = sceneRef.current.getAnimationPlaybackState()
-      console.info('[VRM load] start', {
-        fileName: file.name,
-        fileSizeBytes: file.size,
-      })
+      const nextModels = append ? [...models] : []
+      let lastLoadedModelId: string | null = null
+      let hasLoadedAny = append
+      const failedFileNames: string[] = []
 
-      const arrayBuffer = await file.arrayBuffer()
-      console.info('[VRM load] file.arrayBuffer complete', {
-        fileName: file.name,
-        elapsedMs: roundDuration(performance.now() - loadStartedAt),
-      })
+      for (const [index, file] of vrmFiles.entries()) {
+        const shouldAppend = append || hasLoadedAny
 
-      const vrm = await sceneRef.current.load(arrayBuffer)
-      console.info('[VRM load] scene controller load complete', {
-        fileName: file.name,
-        elapsedMs: roundDuration(performance.now() - loadStartedAt),
-      })
+        try {
+          console.info('[VRM load] start', {
+            fileName: file.name,
+            fileSizeBytes: file.size,
+            append: shouldAppend,
+            batchSize: vrmFiles.length,
+            batchIndex: index,
+          })
 
-      const nextInspector = inspectVRM(vrm, file.name)
-      console.info('[VRM load] inspectVRM complete', {
-        fileName: file.name,
-        elapsedMs: roundDuration(performance.now() - loadStartedAt),
-      })
+          const arrayBuffer = await file.arrayBuffer()
+          console.info('[VRM load] file.arrayBuffer complete', {
+            fileName: file.name,
+            elapsedMs: roundDuration(performance.now() - loadStartedAt),
+          })
 
-      let nextLoadedAnimation: LoadedAnimationState | null = null
-      let nextLoadError: LoadErrorState | null = null
+          const result = shouldAppend
+            ? await sceneRef.current.add(arrayBuffer, file.name)
+            : await sceneRef.current.load(arrayBuffer, file.name)
+          console.info('[VRM load] scene controller load complete', {
+            fileName: file.name,
+            elapsedMs: roundDuration(performance.now() - loadStartedAt),
+          })
 
-      if (rememberedAnimationSource) {
+          const nextInspector = inspectVRM(result.vrm, file.name)
+          console.info('[VRM load] inspectVRM complete', {
+            fileName: file.name,
+            elapsedMs: roundDuration(performance.now() - loadStartedAt),
+          })
+
+          if (shouldAppend) {
+            nextModels.push({ modelId: result.modelId, inspector: nextInspector })
+          } else {
+            nextModels.splice(0, nextModels.length, {
+              modelId: result.modelId,
+              inspector: nextInspector,
+            })
+          }
+
+          hasLoadedAny = true
+          lastLoadedModelId = result.modelId
+        } catch (error) {
+          console.error(error)
+          failedFileNames.push(file.name)
+        }
+      }
+
+      if (!nextModels.length) {
+        if (failedFileNames.length) {
+          setLoadError({
+            title: 'Failed to load VRM',
+            message: `Could not load: ${failedFileNames.join(', ')}`,
+          })
+        }
+        return
+      }
+
+      let nextLoadedAnimation: LoadedAnimationState | null = loadedAnimation
+      let nextLoadError: LoadErrorState | null =
+        failedFileNames.length > 0
+          ? {
+              title: 'Some VRMs failed to load',
+              message: `Loaded available files. Failed: ${failedFileNames.join(', ')}`,
+            }
+          : null
+
+      if (rememberedAnimationSource && nextModels.length) {
         try {
           nextLoadedAnimation = await sceneRef.current.loadAnimation(
             rememberedAnimationSource.arrayBuffer.slice(0),
@@ -69,23 +136,27 @@ export function useVrmLoader({ sceneRef, onVrmLoaded }: UseVrmLoaderOptions) {
           sceneRef.current.clearAnimation()
           loadedAnimationSourceRef.current = null
           nextLoadError = getLoadErrorDetails(error, 'VRMA')
+          nextLoadedAnimation = null
         }
       }
 
       console.info('[VRM load] state commit scheduled', {
-        fileName: file.name,
+        fileName: vrmFiles.map((file) => file.name).join(', '),
         elapsedMs: roundDuration(performance.now() - loadStartedAt),
       })
 
       startTransition(() => {
-        setInspector(nextInspector)
+        setModels(nextModels)
+        setSelectedModelId(lastLoadedModelId)
+        if (lastLoadedModelId) {
+          sceneRef.current?.selectModel(lastLoadedModelId)
+        }
         setLoadedAnimation(nextLoadedAnimation)
         setLoadError(nextLoadError)
-        onVrmLoaded(nextInspector)
       })
 
       console.info('[VRM load] success', {
-        fileName: file.name,
+        fileName: vrmFiles.map((file) => file.name).join(', '),
         totalElapsedMs: roundDuration(performance.now() - loadStartedAt),
       })
     } catch (error) {
@@ -107,7 +178,7 @@ export function useVrmLoader({ sceneRef, onVrmLoaded }: UseVrmLoaderOptions) {
     try {
       const arrayBuffer = await file.arrayBuffer()
 
-      if (!inspector) {
+      if (!models.length) {
         loadedAnimationSourceRef.current = {
           fileName: file.name,
           arrayBuffer,
@@ -142,16 +213,60 @@ export function useVrmLoader({ sceneRef, onVrmLoaded }: UseVrmLoaderOptions) {
     setLoadedAnimation(null)
   }
 
+  function selectModel(modelId: string) {
+    setSelectedModelId(modelId)
+    sceneRef.current?.selectModel(modelId)
+  }
+
+  function removeModel(modelId: string) {
+    sceneRef.current?.removeModel(modelId)
+    setModels((current) => {
+      const nextModels = current.filter((model) => model.modelId !== modelId)
+      const nextSelectedModelId =
+        selectedModelId === modelId ? (nextModels[0]?.modelId ?? null) : selectedModelId
+      setSelectedModelId(nextSelectedModelId)
+      if (nextSelectedModelId) {
+        sceneRef.current?.selectModel(nextSelectedModelId)
+      }
+      return nextModels
+    })
+  }
+
+  function moveModel(modelId: string, toIndex: number) {
+    sceneRef.current?.moveModel(modelId, toIndex)
+    setModels((current) => {
+      const index = current.findIndex((model) => model.modelId === modelId)
+      const nextIndex = Math.max(0, Math.min(toIndex, current.length - 1))
+      if (index < 0 || nextIndex < 0 || nextIndex >= current.length) {
+        return current
+      }
+      if (index === nextIndex) {
+        return current
+      }
+
+      const nextModels = [...current]
+      const [movingModel] = nextModels.splice(index, 1)
+      nextModels.splice(nextIndex, 0, movingModel)
+      return nextModels
+    })
+  }
+
   return {
+    models,
+    selectedModelId,
     inspector,
     isLoading,
     loadError,
     loadedAnimation,
     loadVrmFile,
+    loadVrmFiles,
     loadVrmaFile,
     clearAnimation,
     clearLoadError: () => setLoadError(null),
     setLoadedAnimation,
+    selectModel,
+    removeModel,
+    moveModel,
   }
 }
 

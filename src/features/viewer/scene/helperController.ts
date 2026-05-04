@@ -1,11 +1,9 @@
 import * as THREE from 'three'
 
 export function createHelperController({
-  officialHelperRoot,
   springBoneHelperRoot,
   colliderHelperRoot,
 }: {
-  officialHelperRoot: THREE.Group
   springBoneHelperRoot: THREE.Group
   colliderHelperRoot: THREE.Group
 }) {
@@ -22,14 +20,23 @@ export function createHelperController({
   }
 
   const setupSpringBoneHelpers = (
+    sourceRoot: THREE.Group | null,
     springBoneHelpersVisible: boolean,
     colliderHelpersVisible: boolean,
   ) => {
     clearHelperRoots()
 
+    if (!sourceRoot) {
+      applyHelperVisibility(springBoneHelperRoot, colliderHelperRoot, {
+        springBoneHelpersVisible,
+        colliderHelpersVisible,
+      })
+      return
+    }
+
     const helperChildren: THREE.Object3D[] = []
-    officialHelperRoot.traverse((object) => {
-      if (object !== officialHelperRoot) {
+    sourceRoot.traverse((object) => {
+      if (object !== sourceRoot) {
         helperChildren.push(object)
       }
     })

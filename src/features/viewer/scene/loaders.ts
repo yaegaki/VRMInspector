@@ -1,5 +1,4 @@
 import * as THREE from 'three'
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { VRM, VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm'
 import {
@@ -8,73 +7,60 @@ import {
   createVRMAnimationClip,
   type VRMAnimation,
 } from '@pixiv/three-vrm-animation'
-import type { BoneTransform, DebugViewMode, LoadAnimationOptions, LoadedAnimationState } from '../types'
+import type {
+  BoneTransform,
+  LoadAnimationOptions,
+  LoadedAnimationState,
+  LoadedVrmModelSummary,
+} from '../types'
 
-type LoadVrmIntoSceneOptions = {
-  arrayBuffer: ArrayBuffer
-  scene: THREE.Scene
-  camera: THREE.PerspectiveCamera
-  controls: OrbitControls
-  initialCameraPosition: THREE.Vector3
-  initialTarget: THREE.Vector3
-  officialHelperRoot: THREE.Group
-  boneMarker: THREE.Group
-  currentVRM: VRM | null
-  animationMixer: THREE.AnimationMixer | null
-  currentDebugMode: DebugViewMode
-  clearCurrentAnimation: () => void
-  clearHelperRoots: () => void
-  applyDebugMode: (mode: DebugViewMode) => void
-  setupSpringBoneHelpers: () => void
-}
-
-type LoadVrmIntoSceneResult = {
+export type LoadedSceneModel = LoadedVrmModelSummary & {
   vrm: VRM
   animationMixer: THREE.AnimationMixer
   initialBoneTransforms: Map<string, BoneTransform>
+  helperRoot: THREE.Group
+  width: number
+  height: number
+}
+
+type LoadVrmIntoSceneOptions = {
+  arrayBuffer: ArrayBuffer
+  fileName: string
 }
 
 type LoadVrmaIntoSceneOptions = {
   arrayBuffer: ArrayBuffer
   fileName: string
   options?: LoadAnimationOptions
-  currentVRM: VRM | null
-  animationMixer: THREE.AnimationMixer | null
-  clearCurrentAnimation: () => void
+  targets: Array<{
+    modelId: string
+    vrm: VRM
+    animationMixer: THREE.AnimationMixer
+  }>
+  clearCurrentAnimation: (modelId: string) => void
 }
 
 type LoadVrmaIntoSceneResult = {
-  animationMixer: THREE.AnimationMixer
-  animationClip: THREE.AnimationClip
-  animationAction: THREE.AnimationAction
+  perModel: Array<{
+    modelId: string
+    animationClip: THREE.AnimationClip
+    animationAction: THREE.AnimationAction
+  }>
   animationState: LoadedAnimationState
 }
 
 export async function loadVrmIntoScene({
   arrayBuffer,
-  scene,
-  camera,
-  controls,
-  initialCameraPosition,
-  initialTarget,
-  officialHelperRoot,
-  boneMarker,
-  currentVRM,
-  animationMixer,
-  currentDebugMode,
-  clearCurrentAnimation,
-  clearHelperRoots,
-  applyDebugMode,
-  setupSpringBoneHelpers,
-}: LoadVrmIntoSceneOptions): Promise<LoadVrmIntoSceneResult> {
+  fileName,
+}: LoadVrmIntoSceneOptions): Promise<LoadedSceneModel> {
   const startedAt = performance.now()
   const loader = new GLTFLoader()
-  clearHelperRoots()
-  officialHelperRoot.clear()
+  const helperRoot = new THREE.Group()
+  helperRoot.name = `officialHelperRoot:${fileName}`
   loader.register(
     (parser) =>
       new VRMLoaderPlugin(parser, {
-        helperRoot: officialHelperRoot,
+        helperRoot,
       }),
   )
 
@@ -86,47 +72,35 @@ export async function loadVrmIntoScene({
     throw new Error('Failed to read VRM data.')
   }
 
-  if (currentVRM) {
-    clearCurrentAnimation()
-    if (animationMixer) {
-      animationMixer.uncacheRoot(currentVRM.scene)
-    }
-    scene.remove(currentVRM.scene)
-    VRMUtils.deepDispose(currentVRM.scene)
-  }
-
   VRMUtils.rotateVRM0(vrm)
   logSceneLoadStage('VRMUtils.rotateVRM0', startedAt)
   vrm.scene.traverse((object) => {
     object.frustumCulled = false
   })
   logSceneLoadStage('scene.traverse disable frustum culling', startedAt)
-  placeModel(vrm, camera, controls, initialCameraPosition, initialTarget)
-  logSceneLoadStage('placeModel', startedAt)
+  const modelBounds = normalizeModel(vrm)
+  logSceneLoadStage('normalizeModel', startedAt)
   ensureLookAtProxy(vrm)
   logSceneLoadStage('ensureLookAtProxy', startedAt)
-  scene.add(vrm.scene)
-  logSceneLoadStage('scene.add', startedAt)
 
-  const nextAnimationMixer = new THREE.AnimationMixer(vrm.scene)
+  const animationMixer = new THREE.AnimationMixer(vrm.scene)
   logSceneLoadStage('AnimationMixer init', startedAt)
   const initialBoneTransforms = collectInitialBoneTransforms(vrm.scene)
   logSceneLoadStage('collectInitialBoneTransforms', startedAt)
-
-  boneMarker.visible = false
-  applyDebugMode(currentDebugMode)
-  logSceneLoadStage('applyDebugMode', startedAt)
-  setupSpringBoneHelpers()
-  logSceneLoadStage('setupSpringBoneHelpers', startedAt)
 
   console.info('[scene load] complete', {
     totalElapsedMs: roundDuration(performance.now() - startedAt),
   })
 
   return {
+    modelId: crypto.randomUUID(),
+    fileName,
     vrm,
-    animationMixer: nextAnimationMixer,
+    animationMixer,
     initialBoneTransforms,
+    helperRoot,
+    width: modelBounds.width,
+    height: modelBounds.height,
   }
 }
 
@@ -134,11 +108,10 @@ export async function loadVrmaIntoScene({
   arrayBuffer,
   fileName,
   options,
-  currentVRM,
-  animationMixer,
+  targets,
   clearCurrentAnimation,
 }: LoadVrmaIntoSceneOptions): Promise<LoadVrmaIntoSceneResult> {
-  if (!currentVRM) {
+  if (!targets.length) {
     throw new Error('Load a VRM before loading a VRMA animation.')
   }
 
@@ -153,42 +126,43 @@ export async function loadVrmaIntoScene({
     throw new Error('No VRM animation track was found in the selected VRMA file.')
   }
 
-  const clip = createVRMAnimationClip(
-    vrmAnimation,
-    currentVRM as unknown as Parameters<typeof createVRMAnimationClip>[1],
-  )
-  const nextAnimationMixer = animationMixer ?? new THREE.AnimationMixer(currentVRM.scene)
+  const perModel = targets.map(({ modelId, vrm, animationMixer }) => {
+    clearCurrentAnimation(modelId)
 
-  clearCurrentAnimation()
+    const clip = createVRMAnimationClip(
+      vrmAnimation,
+      vrm as unknown as Parameters<typeof createVRMAnimationClip>[1],
+    )
+    const action = animationMixer.clipAction(clip)
+    action.reset()
+    action.setLoop(THREE.LoopRepeat, Infinity)
+    action.clampWhenFinished = false
+    action.play()
+    action.time = options?.time ?? 0
+    action.paused = options?.isPlaying === false
 
-  const action = nextAnimationMixer.clipAction(clip)
-  action.reset()
-  action.setLoop(THREE.LoopRepeat, Infinity)
-  action.clampWhenFinished = false
-  action.play()
-  action.paused = options?.isPlaying === false
+    return {
+      modelId,
+      animationClip: clip,
+      animationAction: action,
+    }
+  })
+
+  const referenceAction = perModel[0].animationAction
 
   return {
-    animationMixer: nextAnimationMixer,
-    animationClip: clip,
-    animationAction: action,
+    perModel,
     animationState: {
       fileName,
-      currentTime: action.time,
-      duration: clip.duration,
-      isPlaying: !action.paused,
+      currentTime: referenceAction.time,
+      duration: perModel[0].animationClip.duration,
+      isPlaying: !referenceAction.paused,
       status: 'ready',
     },
   }
 }
 
-function placeModel(
-  vrm: VRM,
-  camera: THREE.PerspectiveCamera,
-  controls: OrbitControls,
-  initialCameraPosition: THREE.Vector3,
-  initialTarget: THREE.Vector3,
-) {
+function normalizeModel(vrm: VRM) {
   const box = new THREE.Box3().setFromObject(vrm.scene)
   const size = box.getSize(new THREE.Vector3())
   const center = box.getCenter(new THREE.Vector3())
@@ -197,16 +171,10 @@ function placeModel(
   vrm.scene.position.z -= center.z
   vrm.scene.position.y -= box.min.y
 
-  const maxDimension = Math.max(size.x, size.y, size.z, 1)
-  controls.target.set(0, size.y * 0.55, 0)
-  controls.minDistance = maxDimension * 0.4
-  controls.maxDistance = maxDimension * 5
-  camera.position.set(controls.target.x, controls.target.y, controls.target.z + maxDimension * 2.1)
-  camera.up.set(0, 1, 0)
-  initialCameraPosition.copy(camera.position)
-  initialTarget.copy(controls.target)
-  camera.lookAt(controls.target)
-  controls.update()
+  return {
+    width: Math.max(size.x, 1),
+    height: Math.max(size.y, 1),
+  }
 }
 
 function collectInitialBoneTransforms(root: THREE.Object3D) {

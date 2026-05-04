@@ -28,6 +28,11 @@ export type LoadErrorState = {
   message: string
 }
 
+export type LoadedVrmModelSummary = {
+  modelId: string
+  fileName: string
+}
+
 export type BoneTransformSpace = 'local' | 'world'
 
 export type BoneTransform = {
@@ -45,7 +50,11 @@ export type BoneTransform = {
 
 export type SceneController = {
   dispose: () => void
-  load: (arrayBuffer: ArrayBuffer) => Promise<VRM>
+  load: (arrayBuffer: ArrayBuffer, fileName: string) => Promise<LoadedVrmModelSummary & { vrm: VRM }>
+  add: (arrayBuffer: ArrayBuffer, fileName: string) => Promise<LoadedVrmModelSummary & { vrm: VRM }>
+  removeModel: (modelId: string) => void
+  moveModel: (modelId: string, toIndex: number) => void
+  selectModel: (modelId: string | null) => void
   loadAnimation: (
     arrayBuffer: ArrayBuffer,
     fileName: string,
@@ -65,6 +74,8 @@ export type SceneController = {
   setDebugMode: (mode: DebugViewMode) => void
   setSpringBoneHelpersVisible: (visible: boolean) => void
   setColliderHelpersVisible: (visible: boolean) => void
+  setModelGap: (gap: number) => void
+  setModelRootAxisVisible: (visible: boolean) => void
   setAnimationPlaying: (playing: boolean) => boolean
   restartAnimation: () => boolean
   getAnimationPlaybackState: () => AnimationPlaybackState | null
