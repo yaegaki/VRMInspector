@@ -92,7 +92,7 @@ export function useFileDropZone({
 
       if (supportedFiles.length) {
         onDropFiles(supportedFiles, {
-          forceAppend: event.ctrlKey || event.metaKey,
+          forceAppend: event.ctrlKey || event.altKey,
         })
       }
     }
