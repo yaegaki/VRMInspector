@@ -9,6 +9,7 @@ import {
 import './App.css'
 import { BonesTab } from './features/inspector/components/BonesTab'
 import { ExpressionsTab } from './features/inspector/components/ExpressionsTab'
+import { HelpTab } from './features/inspector/components/HelpTab'
 import { MaterialsTab } from './features/inspector/components/MaterialsTab'
 import { MetaTab } from './features/inspector/components/MetaTab'
 import { OverviewTab } from './features/inspector/components/OverviewTab'
@@ -27,6 +28,7 @@ type InspectorTab =
   | 'textures'
   | 'materials'
   | 'bones'
+  | 'help'
 
 const TABS: Array<{ id: InspectorTab; label: string }> = [
   { id: 'overview', label: 'Overview' },
@@ -35,6 +37,7 @@ const TABS: Array<{ id: InspectorTab; label: string }> = [
   { id: 'textures', label: 'Textures' },
   { id: 'materials', label: 'Materials' },
   { id: 'bones', label: 'Bones' },
+  { id: 'help', label: 'Help' },
 ]
 
 function App() {
@@ -425,6 +428,12 @@ function App() {
                   onBoneTransformAxisChange={boneEditor.handleBoneTransformAxisChange}
                   onBoneTransformDragStart={boneEditor.handleBoneTransformDragStart}
                 />
+              </InfoSection>
+            ) : null}
+
+            {activeTab === 'help' ? (
+              <InfoSection title="Help">
+                <HelpTab />
               </InfoSection>
             ) : null}
           </div>

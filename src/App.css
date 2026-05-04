@@ -454,6 +454,20 @@
   gap: 4px;
 }
 
+.help-section {
+  display: grid;
+  gap: 8px;
+}
+
+.help-link {
+  color: #8b3419;
+  text-decoration: none;
+}
+
+.help-link:hover {
+  text-decoration: underline;
+}
+
 .bone-transform-sticky {
   position: sticky;
   top: 0;
