@@ -23,7 +23,14 @@ type SceneModelEntry = LoadedSceneModel & {
   animationAction: THREE.AnimationAction | null
 }
 
-export function createSceneController(container: HTMLDivElement): SceneController {
+type CreateSceneControllerOptions = {
+  onSelectModel?: (modelId: string) => void
+}
+
+export function createSceneController(
+  container: HTMLDivElement,
+  options: CreateSceneControllerOptions = {},
+): SceneController {
   const scene = new THREE.Scene()
   scene.background = new THREE.Color('#101418')
   scene.fog = new THREE.Fog('#101418', 10, 30)
@@ -94,6 +101,8 @@ export function createSceneController(container: HTMLDivElement): SceneControlle
   scene.add(modelRootMarker)
 
   const viewOffset = new THREE.Vector3()
+  const raycaster = new THREE.Raycaster()
+  const pointer = new THREE.Vector2()
   const timer = new THREE.Timer()
   let models: SceneModelEntry[] = []
   let selectedModelId: string | null = null
@@ -112,6 +121,20 @@ export function createSceneController(container: HTMLDivElement): SceneControlle
 
   function getSelectedModel() {
     return models.find((model) => model.modelId === selectedModelId) ?? models[0] ?? null
+  }
+
+  function getModelIdFromObject(object: THREE.Object3D | null) {
+    let current: THREE.Object3D | null = object
+
+    while (current) {
+      const model = models.find((entry) => entry.container === current)
+      if (model) {
+        return model.modelId
+      }
+      current = current.parent
+    }
+
+    return null
   }
 
   function clearCurrentAnimation(modelId: string) {
@@ -235,6 +258,29 @@ export function createSceneController(container: HTMLDivElement): SceneControlle
     } else if (view === 'bottom') {
       camera.up.set(0, 0, 1)
     }
+    camera.lookAt(controls.target)
+    controls.update()
+  }
+
+  function focusSelectedModelFront() {
+    const model = getSelectedModel()
+    if (!model) {
+      return
+    }
+
+    const focusRadius = Math.max(model.width, model.height, 1)
+    const focusDistance = Math.max(focusRadius * 2.1, controls.minDistance * 1.05)
+    controls.target.set(
+      model.container.position.x,
+      model.height * 0.55,
+      model.container.position.z,
+    )
+    camera.position.set(
+      controls.target.x,
+      controls.target.y,
+      controls.target.z + focusDistance,
+    )
+    camera.up.set(0, 1, 0)
     camera.lookAt(controls.target)
     controls.update()
   }
@@ -382,10 +428,40 @@ export function createSceneController(container: HTMLDivElement): SceneControlle
 
   resizeObserver.observe(container)
 
+  function handleViewportClick(event: MouseEvent) {
+    if (event.button !== 0 || !models.length) {
+      return
+    }
+
+    const rect = renderer.domElement.getBoundingClientRect()
+    pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
+    pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
+
+    raycaster.setFromCamera(pointer, camera)
+    const intersections = raycaster.intersectObjects(
+      models.map((model) => model.container),
+      true,
+    )
+
+    const modelId = getModelIdFromObject(intersections[0]?.object ?? null)
+    if (!modelId || modelId === selectedModelId) {
+      return
+    }
+
+    selectedModelId = modelId
+    boneController.clearSelection()
+    updateModelRootMarker()
+    applyHelperVisibility()
+    options.onSelectModel?.(modelId)
+  }
+
+  renderer.domElement.addEventListener('click', handleViewportClick)
+
   return {
     dispose() {
       disposed = true
       resizeObserver.disconnect()
+      renderer.domElement.removeEventListener('click', handleViewportClick)
       controls.dispose()
       clearAllAnimations()
       timer.dispose()
@@ -484,6 +560,9 @@ export function createSceneController(container: HTMLDivElement): SceneControlle
     },
     setView(view) {
       setCameraView(view)
+    },
+    focusSelectedModelFront() {
+      focusSelectedModelFront()
     },
     selectBone(boneKey) {
       boneController.selectBone(boneKey)

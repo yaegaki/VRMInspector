@@ -63,6 +63,7 @@ export type SceneController = {
   setExpression: (name: string, value: number) => void
   resetCamera: () => void
   setView: (view: CameraView) => void
+  focusSelectedModelFront: () => void
   selectBone: (boneKey: string | null) => void
   getSelectedBoneTransform: (space: BoneTransformSpace) => BoneTransform | null
   setSelectedBoneTransform: (

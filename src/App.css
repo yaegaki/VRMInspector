@@ -506,6 +506,11 @@
   cursor: pointer;
 }
 
+.model-card-button:focus,
+.model-card-button:focus-visible {
+  outline: none;
+}
+
 .model-card-button strong,
 .model-card-button span {
   white-space: nowrap;

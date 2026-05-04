@@ -192,7 +192,9 @@ function App() {
           return
         }
 
-        const sceneController = createSceneController(viewportRef.current)
+        const sceneController = createSceneController(viewportRef.current, {
+          onSelectModel: selectModel,
+        })
         sceneRef.current = sceneController
         sceneController.setDebugMode(sceneUiStateRef.current.debugViewMode)
         sceneController.setSpringBoneHelpersVisible(
@@ -411,6 +413,7 @@ function App() {
             <p>1/3/7: front/right/top</p>
             <p>Ctrl+1/3/7: back/left/bottom</p>
             <p>5: reset</p>
+            <p>F: focus selected model front</p>
             {isLoading ? <p className="loading-pill">Loading...</p> : null}
           </div>
           {loadError ? (

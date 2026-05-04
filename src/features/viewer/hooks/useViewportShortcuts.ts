@@ -22,6 +22,12 @@ export function useViewportShortcuts(
         return
       }
 
+      if (event.key.toLowerCase() === 'f') {
+        event.preventDefault()
+        sceneRef.current?.focusSelectedModelFront()
+        return
+      }
+
       const isCtrl = event.ctrlKey || event.metaKey
       let nextView: CameraView | null = null
 
