@@ -266,7 +266,7 @@ function App() {
                 className="secondary-button"
                 onClick={() => animationInputRef.current?.click()}
                 type="button"
-                disabled={!inspector || isLoading}
+                disabled={isLoading}
               >
                 Load VRMA
               </button>
