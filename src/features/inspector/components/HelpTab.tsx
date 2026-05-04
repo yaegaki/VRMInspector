@@ -4,6 +4,18 @@ export function HelpTab() {
     <div className="help-section">
       <div className="detail-list">
         <article className="detail-card">
+          <span>About</span>
+          <strong>Inspect VRM models in the browser</strong>
+          <span>
+            View model metadata, textures, materials, expressions, bones, and VRMA
+            animation playback.
+          </span>
+          <span>
+            All processing stays in the browser. Files are not uploaded to a server.
+          </span>
+        </article>
+
+        <article className="detail-card">
           <span>GitHub</span>
           <strong>
             <a
