@@ -12,6 +12,7 @@ import { ExpressionsTab } from './features/inspector/components/ExpressionsTab'
 import { HelpTab } from './features/inspector/components/HelpTab'
 import { MaterialsTab } from './features/inspector/components/MaterialsTab'
 import { MetaTab } from './features/inspector/components/MetaTab'
+import { ModelsTab } from './features/inspector/components/ModelsTab'
 import { OverviewTab } from './features/inspector/components/OverviewTab'
 import { TexturesTab } from './features/inspector/components/TexturesTab'
 import { useBoneEditor } from './features/inspector/hooks/useBoneEditor'
@@ -22,6 +23,7 @@ import { useViewportShortcuts } from './features/viewer/hooks/useViewportShortcu
 import type { DebugViewMode, SceneController } from './features/viewer/types'
 
 type InspectorTab =
+  | 'models'
   | 'overview'
   | 'meta'
   | 'expressions'
@@ -31,6 +33,7 @@ type InspectorTab =
   | 'help'
 
 const TABS: Array<{ id: InspectorTab; label: string }> = [
+  { id: 'models', label: 'Models' },
   { id: 'overview', label: 'Overview' },
   { id: 'meta', label: 'Meta' },
   { id: 'expressions', label: 'Expressions' },
@@ -47,31 +50,51 @@ function App() {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const animationInputRef = useRef<HTMLInputElement | null>(null)
   const sceneRef = useRef<SceneController | null>(null)
-  const [activeTab, setActiveTab] = useState<InspectorTab>('overview')
+  const sceneUiStateRef = useRef({
+    debugViewMode: 'standard' as DebugViewMode,
+    showSpringBones: false,
+    showColliders: false,
+    modelGap: 0.2,
+    modelRootAxisVisible: true,
+  })
+  const [activeTab, setActiveTab] = useState<InspectorTab>('models')
   const [debugViewMode, setDebugViewMode] = useState<DebugViewMode>('standard')
   const [showSpringBones, setShowSpringBones] = useState(false)
   const [showColliders, setShowColliders] = useState(false)
+  const [modelGap, setModelGap] = useState(0.2)
+  const [loadMode, setLoadMode] = useState<'add' | 'replace'>('replace')
 
   const boneEditor = useBoneEditor(sceneRef)
   const expressionControls = useExpressionControls(sceneRef)
+  const { resetSelection: resetBoneSelection } = boneEditor
   const {
+    models,
+    selectedModelId,
     inspector,
     isLoading,
     loadError,
     loadedAnimation,
-    loadVrmFile,
+    loadVrmFiles,
     loadVrmaFile,
     clearAnimation,
     clearLoadError,
     setLoadedAnimation,
-  } = useVrmLoader({
-    sceneRef,
-    onVrmLoaded(nextInspector) {
-      boneEditor.resetSelection()
-      expressionControls.resetExpressionValues(nextInspector.expressions)
-    },
-  })
+    selectModel,
+    removeModel,
+    moveModel,
+  } = useVrmLoader({ sceneRef })
   const expressionList = inspector?.expressions ?? []
+  const expressionValues = selectedModelId
+    ? (expressionControls.expressionValuesByModel[selectedModelId] ?? {})
+    : {}
+
+  sceneUiStateRef.current = {
+    debugViewMode,
+    showSpringBones,
+    showColliders,
+    modelGap,
+    modelRootAxisVisible: boneEditor.selectedBoneKey == null,
+  }
 
   const syncAnimationPlaybackState = useEffectEvent(() => {
     const playbackState = sceneRef.current?.getAnimationPlaybackState()
@@ -99,24 +122,42 @@ function App() {
     })
   })
 
-  function handleDroppedFile(file: File) {
-    if (file.name.toLowerCase().endsWith('.vrm')) {
-      void loadVrmFile(file)
+  function handleDroppedFiles(files: File[], options: { forceAppend: boolean }) {
+    const vrmFiles = files.filter((file) => file.name.toLowerCase().endsWith('.vrm'))
+    if (vrmFiles.length) {
+      void loadVrmFiles(vrmFiles, {
+        append: options.forceAppend || loadMode === 'add',
+      })
       return
     }
 
-    if (file.name.toLowerCase().endsWith('.vrma')) {
-      void loadVrmaFile(file)
+    const vrmaFile = files.find((file) => file.name.toLowerCase().endsWith('.vrma'))
+    if (vrmaFile) {
+      void loadVrmaFile(vrmaFile)
     }
   }
 
   const { activeDropZone } = useFileDropZone({
     viewerRef: dropZoneRef,
     panelRef: actionDropZoneRef,
-    onDropFile: handleDroppedFile,
+    onDropFiles: handleDroppedFiles,
   })
 
   useViewportShortcuts(sceneRef)
+
+  useEffect(() => {
+    resetBoneSelection()
+  }, [resetBoneSelection, selectedModelId])
+
+  useEffect(() => {
+    if (!selectedModelId || !inspector) {
+      return
+    }
+
+    if (!expressionControls.expressionValuesByModel[selectedModelId]) {
+      expressionControls.resetExpressionValues(selectedModelId, inspector.expressions)
+    }
+  }, [expressionControls, inspector, selectedModelId])
 
   useEffect(() => {
     if (loadedAnimation?.status !== 'ready') {
@@ -153,6 +194,15 @@ function App() {
 
         const sceneController = createSceneController(viewportRef.current)
         sceneRef.current = sceneController
+        sceneController.setDebugMode(sceneUiStateRef.current.debugViewMode)
+        sceneController.setSpringBoneHelpersVisible(
+          sceneUiStateRef.current.showSpringBones,
+        )
+        sceneController.setColliderHelpersVisible(
+          sceneUiStateRef.current.showColliders,
+        )
+        sceneController.setModelGap(sceneUiStateRef.current.modelGap)
+        sceneController.setModelRootAxisVisible(sceneUiStateRef.current.modelRootAxisVisible)
         disposeScene = () => {
           sceneController.dispose()
           sceneRef.current = null
@@ -179,13 +229,23 @@ function App() {
     sceneRef.current?.setColliderHelpersVisible(showColliders)
   }, [showColliders])
 
+  useEffect(() => {
+    sceneRef.current?.setModelGap(modelGap)
+  }, [modelGap])
+
+  useEffect(() => {
+    sceneRef.current?.setModelRootAxisVisible(boneEditor.selectedBoneKey == null)
+  }, [boneEditor.selectedBoneKey])
+
   function handleFileSelection(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
-    if (!file) {
+    const files = Array.from(event.target.files ?? []).filter((file) =>
+      file.name.toLowerCase().endsWith('.vrm'),
+    )
+    if (!files.length) {
       return
     }
 
-    void loadVrmFile(file)
+    void loadVrmFiles(files, { append: loadMode === 'add' })
     event.target.value = ''
   }
 
@@ -241,6 +301,7 @@ function App() {
             className="file-input"
             type="file"
             accept=".vrm"
+            multiple
             onChange={handleFileSelection}
           />
           <input
@@ -395,6 +456,22 @@ function App() {
               </InfoSection>
             ) : null}
 
+            {activeTab === 'models' ? (
+              <InfoSection title="Models">
+                <ModelsTab
+                  models={models}
+                  selectedModelId={selectedModelId}
+                  modelGap={modelGap}
+                  loadMode={loadMode}
+                  onSelectModel={selectModel}
+                  onRemoveModel={removeModel}
+                  onMoveModel={moveModel}
+                  onModelGapChange={setModelGap}
+                  onLoadModeChange={setLoadMode}
+                />
+              </InfoSection>
+            ) : null}
+
             {activeTab === 'meta' ? (
               <InfoSection title="Meta">
                 <MetaTab inspector={inspector} />
@@ -405,8 +482,13 @@ function App() {
               <InfoSection title="Expressions">
                 <ExpressionsTab
                   expressions={expressionList}
-                  expressionValues={expressionControls.expressionValues}
-                  onExpressionChange={expressionControls.handleExpressionChange}
+                  expressionValues={expressionValues}
+                  onExpressionChange={(name, value) => {
+                    if (!selectedModelId) {
+                      return
+                    }
+                    expressionControls.handleExpressionChange(selectedModelId, name, value)
+                  }}
                 />
               </InfoSection>
             ) : null}

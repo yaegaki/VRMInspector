@@ -5,13 +5,13 @@ type DropZone = 'viewer' | 'panel'
 type UseFileDropZoneOptions = {
   viewerRef: RefObject<HTMLDivElement | null>
   panelRef: RefObject<HTMLDivElement | null>
-  onDropFile: (file: File) => void
+  onDropFiles: (files: File[], options: { forceAppend: boolean }) => void
 }
 
 export function useFileDropZone({
   viewerRef,
   panelRef,
-  onDropFile,
+  onDropFiles,
 }: UseFileDropZoneOptions) {
   const dragDepthRef = useRef<Record<DropZone, number>>({
     viewer: 0,
@@ -85,20 +85,15 @@ export function useFileDropZone({
       setActiveDropZone(null)
 
       const files = Array.from(event.dataTransfer?.files ?? [])
-      const vrmFile = files.find((candidate) =>
-        candidate.name.toLowerCase().endsWith('.vrm'),
-      )
-      const vrmaFile = files.find((candidate) =>
-        candidate.name.toLowerCase().endsWith('.vrma'),
-      )
+      const supportedFiles = files.filter((candidate) => {
+        const lowerName = candidate.name.toLowerCase()
+        return lowerName.endsWith('.vrm') || lowerName.endsWith('.vrma')
+      })
 
-      if (vrmFile) {
-        onDropFile(vrmFile)
-        return
-      }
-
-      if (vrmaFile) {
-        onDropFile(vrmaFile)
+      if (supportedFiles.length) {
+        onDropFiles(supportedFiles, {
+          forceAppend: event.ctrlKey || event.metaKey,
+        })
       }
     }
 
@@ -130,7 +125,7 @@ export function useFileDropZone({
         listener.element.removeEventListener('drop', listener.drop)
       }
     }
-  }, [onDropFile, panelRef, viewerRef])
+  }, [onDropFiles, panelRef, viewerRef])
 
   return { activeDropZone }
 }

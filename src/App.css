@@ -454,6 +454,71 @@
   gap: 4px;
 }
 
+.model-card {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.model-card.is-selected {
+  outline: 2px solid rgba(207, 107, 61, 0.34);
+  background: #fff3eb;
+}
+
+.model-card.is-dragging {
+  opacity: 0.55;
+}
+
+.model-card.is-drop-before,
+.model-card.is-drop-after {
+  position: relative;
+}
+
+.model-card.is-drop-before::before,
+.model-card.is-drop-after::after {
+  content: '';
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #cf6b3d, #8b3419);
+  box-shadow: 0 0 0 2px rgba(255, 243, 235, 0.9);
+}
+
+.model-card.is-drop-before::before {
+  top: -4px;
+}
+
+.model-card.is-drop-after::after {
+  bottom: -4px;
+}
+
+.model-card-button {
+  appearance: none;
+  border: 0;
+  display: grid;
+  gap: 4px;
+  padding: 0;
+  text-align: left;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.model-card-button strong,
+.model-card-button span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.model-card-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .help-section {
   display: grid;
   gap: 8px;
