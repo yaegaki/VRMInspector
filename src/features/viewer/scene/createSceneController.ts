@@ -101,6 +101,7 @@ export function createSceneController(
   scene.add(modelRootMarker)
 
   const viewOffset = new THREE.Vector3()
+  const viewSpherical = new THREE.Spherical()
   const raycaster = new THREE.Raycaster()
   const pointer = new THREE.Vector2()
   const timer = new THREE.Timer()
@@ -235,6 +236,7 @@ export function createSceneController(
 
   function setCameraView(view: CameraView) {
     const distance = camera.position.distanceTo(controls.target)
+    const poleEpsilon = 0.000001
     viewOffset.set(0, 0, 0)
 
     if (view === 'front') {
@@ -246,18 +248,15 @@ export function createSceneController(
     } else if (view === 'right') {
       viewOffset.set(distance, 0, 0)
     } else if (view === 'top') {
-      viewOffset.set(0, distance, 0)
+      viewSpherical.set(distance, poleEpsilon, 0)
+      viewOffset.setFromSpherical(viewSpherical)
     } else if (view === 'bottom') {
-      viewOffset.set(0, -distance, 0)
+      viewSpherical.set(distance, Math.PI - poleEpsilon, 0)
+      viewOffset.setFromSpherical(viewSpherical)
     }
 
     camera.position.copy(controls.target).add(viewOffset)
     camera.up.set(0, 1, 0)
-    if (view === 'top') {
-      camera.up.set(0, 0, -1)
-    } else if (view === 'bottom') {
-      camera.up.set(0, 0, 1)
-    }
     camera.lookAt(controls.target)
     controls.update()
   }
