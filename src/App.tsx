@@ -153,6 +153,7 @@ function App() {
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const dropZoneRef = useRef<HTMLDivElement | null>(null)
   const actionDropZoneRef = useRef<HTMLDivElement | null>(null)
+  const backgroundMenuRef = useRef<HTMLDivElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const animationInputRef = useRef<HTMLInputElement | null>(null)
   const sceneRef = useRef<SceneController | null>(null)
@@ -182,6 +183,7 @@ function App() {
   const [showColliders, setShowColliders] = useState(
     initialViewSettings.showColliders,
   )
+  const [isBackgroundMenuOpen, setIsBackgroundMenuOpen] = useState(false)
   const [modelGap, setModelGap] = useState(0.2)
   const [loadMode, setLoadMode] = useState<'add' | 'replace'>('replace')
 
@@ -212,6 +214,11 @@ function App() {
     backgroundPresetId === 'custom'
       ? customBackgroundColor
       : getPresetBackgroundColor(backgroundPresetId)
+  const selectedBackgroundOption =
+    backgroundPresetId === 'custom'
+      ? { label: 'Custom', color: customBackgroundColor }
+      : (BACKGROUND_PRESETS.find((preset) => preset.id === backgroundPresetId) ??
+        BACKGROUND_PRESETS[0])
 
   sceneUiStateRef.current = {
     debugViewMode,
@@ -386,6 +393,37 @@ function App() {
     showSpringBones,
   ])
 
+  useEffect(() => {
+    if (!isBackgroundMenuOpen) {
+      return
+    }
+
+    function handleDocumentPointerDown(event: PointerEvent) {
+      if (
+        event.target instanceof Node &&
+        backgroundMenuRef.current?.contains(event.target)
+      ) {
+        return
+      }
+
+      setIsBackgroundMenuOpen(false)
+    }
+
+    function handleDocumentKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setIsBackgroundMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('pointerdown', handleDocumentPointerDown)
+    document.addEventListener('keydown', handleDocumentKeyDown)
+
+    return () => {
+      document.removeEventListener('pointerdown', handleDocumentPointerDown)
+      document.removeEventListener('keydown', handleDocumentKeyDown)
+    }
+  }, [isBackgroundMenuOpen])
+
   function handleFileSelection(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []).filter((file) =>
       file.name.toLowerCase().endsWith('.vrm'),
@@ -414,11 +452,22 @@ function App() {
 
   function handleBackgroundPresetChange(presetId: BackgroundPresetId) {
     setBackgroundPresetId(presetId)
+    setIsBackgroundMenuOpen(false)
   }
 
   function handleCustomBackgroundColorChange(color: string) {
     setCustomBackgroundColor(color)
     setBackgroundPresetId('custom')
+  }
+
+  function handleCustomBackgroundColorClick() {
+    if (backgroundPresetId === 'custom') {
+      return
+    }
+
+    setCustomBackgroundColor(backgroundColor)
+    setBackgroundPresetId('custom')
+    setIsBackgroundMenuOpen(false)
   }
 
   function handleSpringBonesVisibleChange(checked: boolean) {
@@ -503,30 +552,67 @@ function App() {
                   <option value="uv">UV</option>
                 </select>
               </label>
-              <label className="background-control">
-                <span>Background</span>
-                <select
-                  value={backgroundPresetId}
-                  onChange={(event) =>
-                    handleBackgroundPresetChange(event.target.value as BackgroundPresetId)
-                  }
+              <div className="background-control">
+                <span className="background-control-label">Background</span>
+                <div
+                  ref={backgroundMenuRef}
+                  className="background-menu"
                 >
-                  {BACKGROUND_PRESETS.map((preset) => (
-                    <option key={preset.id} value={preset.id}>
-                      {preset.label}
-                    </option>
-                  ))}
-                  <option value="custom">Custom</option>
-                </select>
+                  <button
+                    type="button"
+                    className="background-menu-trigger"
+                    aria-haspopup="listbox"
+                    aria-expanded={isBackgroundMenuOpen}
+                    onClick={() => setIsBackgroundMenuOpen((isOpen) => !isOpen)}
+                  >
+                    <span>{selectedBackgroundOption.label}</span>
+                  </button>
+                  {isBackgroundMenuOpen ? (
+                    <div className="background-menu-popover" role="listbox">
+                      {BACKGROUND_PRESETS.map((preset) => (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          className={`background-menu-option${backgroundPresetId === preset.id ? ' is-active' : ''}`}
+                          onClick={() => handleBackgroundPresetChange(preset.id)}
+                          role="option"
+                          aria-selected={backgroundPresetId === preset.id}
+                        >
+                          <span
+                            className="background-option-swatch"
+                            style={{ backgroundColor: preset.color }}
+                            aria-hidden="true"
+                          />
+                          <span>{preset.label}</span>
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        className={`background-menu-option${backgroundPresetId === 'custom' ? ' is-active' : ''}`}
+                        onClick={() => handleBackgroundPresetChange('custom')}
+                        role="option"
+                        aria-selected={backgroundPresetId === 'custom'}
+                      >
+                        <span
+                          className="background-option-swatch"
+                          style={{ backgroundColor: customBackgroundColor }}
+                          aria-hidden="true"
+                        />
+                        <span>Custom</span>
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
                 <input
                   type="color"
-                  value={customBackgroundColor}
+                  value={backgroundColor}
+                  onClick={handleCustomBackgroundColorClick}
                   onChange={(event) =>
                     handleCustomBackgroundColorChange(event.target.value)
                   }
                   aria-label="Custom background color"
                 />
-              </label>
+              </div>
               <label className="toggle-chip">
                 <input
                   type="checkbox"

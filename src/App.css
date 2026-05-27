@@ -104,16 +104,19 @@
   backdrop-filter: blur(10px);
 }
 
+.background-control {
+  position: relative;
+}
+
 .debug-select span,
-.background-control span {
+.background-control-label {
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
-.debug-select select,
-.background-control select {
+.debug-select select {
   appearance: none;
   border: 0;
   border-radius: 999px;
@@ -135,6 +138,90 @@
   border-radius: 999px;
   background: #fffaf2;
   cursor: pointer;
+}
+
+.background-menu {
+  position: relative;
+}
+
+.background-menu-trigger,
+.background-menu-option {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.background-menu-trigger {
+  min-width: 120px;
+  min-height: 32px;
+  justify-content: flex-start;
+  padding: 0 28px 0 12px;
+  border-radius: 999px;
+  color: #201510;
+  background: #fffaf2;
+  position: relative;
+}
+
+.background-menu-trigger::after {
+  content: '';
+  position: absolute;
+  right: 11px;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+}
+
+.background-menu-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 6;
+  display: grid;
+  gap: 4px;
+  min-width: 156px;
+  padding: 6px;
+  border: 1px solid rgba(255, 250, 242, 0.16);
+  border-radius: 14px;
+  background: rgba(14, 20, 25, 0.94);
+  box-shadow: 0 16px 32px rgba(8, 11, 15, 0.3);
+  backdrop-filter: blur(10px);
+}
+
+.background-menu-option {
+  width: 100%;
+  min-height: 32px;
+  justify-content: flex-start;
+  padding: 0 10px;
+  border-radius: 10px;
+  color: #f8f4ea;
+  background: transparent;
+}
+
+.background-menu-option:hover,
+.background-menu-option.is-active {
+  color: #201510;
+  background: #fffaf2;
+}
+
+.background-option-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(255, 250, 242, 0.9);
+  border-radius: 999px;
+  box-shadow:
+    0 0 0 1px rgba(14, 20, 25, 0.48),
+    inset 0 0 0 1px rgba(255, 250, 242, 0.22);
 }
 
 .background-control input[type='color']::-webkit-color-swatch-wrapper {
