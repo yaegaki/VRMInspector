@@ -44,6 +44,15 @@ const TABS: Array<{ id: InspectorTab; label: string }> = [
 ]
 
 type BackgroundPresetId = 'charcoal' | 'warmGray' | 'paper' | 'sky' | 'custom'
+type ViewSettings = {
+  debugViewMode: DebugViewMode
+  backgroundPresetId: BackgroundPresetId
+  customBackgroundColor: string
+  showSpringBones: boolean
+  showColliders: boolean
+}
+
+const VIEW_SETTINGS_STORAGE_KEY = 'vrmInspector.viewSettings.v1'
 
 const BACKGROUND_PRESETS: Array<{
   id: Exclude<BackgroundPresetId, 'custom'>
@@ -56,6 +65,14 @@ const BACKGROUND_PRESETS: Array<{
   { id: 'sky', label: 'Sky', color: '#9fc7e8' },
 ]
 
+const DEFAULT_VIEW_SETTINGS: ViewSettings = {
+  debugViewMode: 'standard',
+  backgroundPresetId: 'charcoal',
+  customBackgroundColor: '#101418',
+  showSpringBones: false,
+  showColliders: false,
+}
+
 function getPresetBackgroundColor(presetId: BackgroundPresetId) {
   return (
     BACKGROUND_PRESETS.find((preset) => preset.id === presetId)?.color ??
@@ -63,7 +80,76 @@ function getPresetBackgroundColor(presetId: BackgroundPresetId) {
   )
 }
 
+function readViewSettings() {
+  if (typeof window === 'undefined') {
+    return DEFAULT_VIEW_SETTINGS
+  }
+
+  try {
+    const rawSettings = window.localStorage.getItem(VIEW_SETTINGS_STORAGE_KEY)
+    if (!rawSettings) {
+      return DEFAULT_VIEW_SETTINGS
+    }
+
+    const parsedSettings = JSON.parse(rawSettings) as Partial<ViewSettings>
+
+    return {
+      debugViewMode: isDebugViewMode(parsedSettings.debugViewMode)
+        ? parsedSettings.debugViewMode
+        : DEFAULT_VIEW_SETTINGS.debugViewMode,
+      backgroundPresetId: isBackgroundPresetId(parsedSettings.backgroundPresetId)
+        ? parsedSettings.backgroundPresetId
+        : DEFAULT_VIEW_SETTINGS.backgroundPresetId,
+      customBackgroundColor: isHexColor(parsedSettings.customBackgroundColor)
+        ? parsedSettings.customBackgroundColor
+        : DEFAULT_VIEW_SETTINGS.customBackgroundColor,
+      showSpringBones:
+        typeof parsedSettings.showSpringBones === 'boolean'
+          ? parsedSettings.showSpringBones
+          : DEFAULT_VIEW_SETTINGS.showSpringBones,
+      showColliders:
+        typeof parsedSettings.showColliders === 'boolean'
+          ? parsedSettings.showColliders
+          : DEFAULT_VIEW_SETTINGS.showColliders,
+    }
+  } catch {
+    return DEFAULT_VIEW_SETTINGS
+  }
+}
+
+function writeViewSettings(settings: ViewSettings) {
+  try {
+    window.localStorage.setItem(VIEW_SETTINGS_STORAGE_KEY, JSON.stringify(settings))
+  } catch {
+    // Ignore storage failures so private browsing or quota limits do not break the app.
+  }
+}
+
+function isDebugViewMode(value: unknown): value is DebugViewMode {
+  return (
+    value === 'standard' ||
+    value === 'normal' ||
+    value === 'litShadeRate' ||
+    value === 'uv'
+  )
+}
+
+function isBackgroundPresetId(value: unknown): value is BackgroundPresetId {
+  return (
+    value === 'charcoal' ||
+    value === 'warmGray' ||
+    value === 'paper' ||
+    value === 'sky' ||
+    value === 'custom'
+  )
+}
+
+function isHexColor(value: unknown): value is string {
+  return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value)
+}
+
 function App() {
+  const [initialViewSettings] = useState(readViewSettings)
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const dropZoneRef = useRef<HTMLDivElement | null>(null)
   const actionDropZoneRef = useRef<HTMLDivElement | null>(null)
@@ -71,20 +157,31 @@ function App() {
   const animationInputRef = useRef<HTMLInputElement | null>(null)
   const sceneRef = useRef<SceneController | null>(null)
   const sceneUiStateRef = useRef({
-    debugViewMode: 'standard' as DebugViewMode,
-    showSpringBones: false,
-    showColliders: false,
+    debugViewMode: initialViewSettings.debugViewMode,
+    showSpringBones: initialViewSettings.showSpringBones,
+    showColliders: initialViewSettings.showColliders,
     modelGap: 0.2,
     modelRootAxisVisible: true,
-    backgroundColor: '#101418',
+    backgroundColor:
+      initialViewSettings.backgroundPresetId === 'custom'
+        ? initialViewSettings.customBackgroundColor
+        : getPresetBackgroundColor(initialViewSettings.backgroundPresetId),
   })
   const [activeTab, setActiveTab] = useState<InspectorTab>('models')
-  const [debugViewMode, setDebugViewMode] = useState<DebugViewMode>('standard')
+  const [debugViewMode, setDebugViewMode] = useState<DebugViewMode>(
+    initialViewSettings.debugViewMode,
+  )
   const [backgroundPresetId, setBackgroundPresetId] =
-    useState<BackgroundPresetId>('charcoal')
-  const [customBackgroundColor, setCustomBackgroundColor] = useState('#101418')
-  const [showSpringBones, setShowSpringBones] = useState(false)
-  const [showColliders, setShowColliders] = useState(false)
+    useState<BackgroundPresetId>(initialViewSettings.backgroundPresetId)
+  const [customBackgroundColor, setCustomBackgroundColor] = useState(
+    initialViewSettings.customBackgroundColor,
+  )
+  const [showSpringBones, setShowSpringBones] = useState(
+    initialViewSettings.showSpringBones,
+  )
+  const [showColliders, setShowColliders] = useState(
+    initialViewSettings.showColliders,
+  )
   const [modelGap, setModelGap] = useState(0.2)
   const [loadMode, setLoadMode] = useState<'add' | 'replace'>('replace')
 
@@ -272,6 +369,22 @@ function App() {
   useEffect(() => {
     sceneRef.current?.setModelRootAxisVisible(boneEditor.selectedBoneKey == null)
   }, [boneEditor.selectedBoneKey])
+
+  useEffect(() => {
+    writeViewSettings({
+      debugViewMode,
+      backgroundPresetId,
+      customBackgroundColor,
+      showSpringBones,
+      showColliders,
+    })
+  }, [
+    backgroundPresetId,
+    customBackgroundColor,
+    debugViewMode,
+    showColliders,
+    showSpringBones,
+  ])
 
   function handleFileSelection(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []).filter((file) =>
