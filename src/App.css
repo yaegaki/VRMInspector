@@ -91,7 +91,8 @@
   box-shadow: 0 10px 24px rgba(70, 29, 16, 0.32);
 }
 
-.debug-select {
+.debug-select,
+.background-control {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -103,14 +104,16 @@
   backdrop-filter: blur(10px);
 }
 
-.debug-select span {
+.debug-select span,
+.background-control span {
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
-.debug-select select {
+.debug-select select,
+.background-control select {
   appearance: none;
   border: 0;
   border-radius: 999px;
@@ -121,6 +124,31 @@
   color: #201510;
   background: #fffaf2;
   cursor: pointer;
+}
+
+.background-control input[type='color'] {
+  appearance: none;
+  width: 34px;
+  height: 32px;
+  padding: 2px;
+  border: 0;
+  border-radius: 999px;
+  background: #fffaf2;
+  cursor: pointer;
+}
+
+.background-control input[type='color']::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.background-control input[type='color']::-webkit-color-swatch {
+  border: 0;
+  border-radius: 999px;
+}
+
+.background-control input[type='color']::-moz-color-swatch {
+  border: 0;
+  border-radius: 999px;
 }
 
 .toggle-chip {

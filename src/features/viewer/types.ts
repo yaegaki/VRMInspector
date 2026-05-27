@@ -73,6 +73,7 @@ export type SceneController = {
   resetSelectedBoneTransform: (space: BoneTransformSpace) => BoneTransform | null
   resetAllBoneTransforms: (space: BoneTransformSpace) => BoneTransform | null
   setDebugMode: (mode: DebugViewMode) => void
+  setBackgroundColor: (color: string) => void
   setSpringBoneHelpersVisible: (visible: boolean) => void
   setColliderHelpersVisible: (visible: boolean) => void
   setModelGap: (gap: number) => void

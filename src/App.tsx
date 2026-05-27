@@ -43,6 +43,26 @@ const TABS: Array<{ id: InspectorTab; label: string }> = [
   { id: 'help', label: 'Help' },
 ]
 
+type BackgroundPresetId = 'charcoal' | 'warmGray' | 'paper' | 'sky' | 'custom'
+
+const BACKGROUND_PRESETS: Array<{
+  id: Exclude<BackgroundPresetId, 'custom'>
+  label: string
+  color: string
+}> = [
+  { id: 'charcoal', label: 'Charcoal', color: '#101418' },
+  { id: 'warmGray', label: 'Warm Gray', color: '#6e675d' },
+  { id: 'paper', label: 'Paper', color: '#f7efe2' },
+  { id: 'sky', label: 'Sky', color: '#9fc7e8' },
+]
+
+function getPresetBackgroundColor(presetId: BackgroundPresetId) {
+  return (
+    BACKGROUND_PRESETS.find((preset) => preset.id === presetId)?.color ??
+    BACKGROUND_PRESETS[0].color
+  )
+}
+
 function App() {
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const dropZoneRef = useRef<HTMLDivElement | null>(null)
@@ -56,9 +76,13 @@ function App() {
     showColliders: false,
     modelGap: 0.2,
     modelRootAxisVisible: true,
+    backgroundColor: '#101418',
   })
   const [activeTab, setActiveTab] = useState<InspectorTab>('models')
   const [debugViewMode, setDebugViewMode] = useState<DebugViewMode>('standard')
+  const [backgroundPresetId, setBackgroundPresetId] =
+    useState<BackgroundPresetId>('charcoal')
+  const [customBackgroundColor, setCustomBackgroundColor] = useState('#101418')
   const [showSpringBones, setShowSpringBones] = useState(false)
   const [showColliders, setShowColliders] = useState(false)
   const [modelGap, setModelGap] = useState(0.2)
@@ -87,6 +111,10 @@ function App() {
   const expressionValues = selectedModelId
     ? (expressionControls.expressionValuesByModel[selectedModelId] ?? {})
     : {}
+  const backgroundColor =
+    backgroundPresetId === 'custom'
+      ? customBackgroundColor
+      : getPresetBackgroundColor(backgroundPresetId)
 
   sceneUiStateRef.current = {
     debugViewMode,
@@ -94,6 +122,7 @@ function App() {
     showColliders,
     modelGap,
     modelRootAxisVisible: boneEditor.selectedBoneKey == null,
+    backgroundColor,
   }
 
   const syncAnimationPlaybackState = useEffectEvent(() => {
@@ -205,6 +234,7 @@ function App() {
         )
         sceneController.setModelGap(sceneUiStateRef.current.modelGap)
         sceneController.setModelRootAxisVisible(sceneUiStateRef.current.modelRootAxisVisible)
+        sceneController.setBackgroundColor(sceneUiStateRef.current.backgroundColor)
         disposeScene = () => {
           sceneController.dispose()
           sceneRef.current = null
@@ -222,6 +252,10 @@ function App() {
   useEffect(() => {
     sceneRef.current?.setDebugMode(debugViewMode)
   }, [debugViewMode])
+
+  useEffect(() => {
+    sceneRef.current?.setBackgroundColor(backgroundColor)
+  }, [backgroundColor])
 
   useEffect(() => {
     sceneRef.current?.setSpringBoneHelpersVisible(showSpringBones)
@@ -263,6 +297,15 @@ function App() {
 
   function handleDebugViewModeChange(mode: DebugViewMode) {
     setDebugViewMode(mode)
+  }
+
+  function handleBackgroundPresetChange(presetId: BackgroundPresetId) {
+    setBackgroundPresetId(presetId)
+  }
+
+  function handleCustomBackgroundColorChange(color: string) {
+    setCustomBackgroundColor(color)
+    setBackgroundPresetId('custom')
   }
 
   function handleSpringBonesVisibleChange(checked: boolean) {
@@ -346,6 +389,30 @@ function App() {
                   <option value="litShadeRate">Lit / Shade</option>
                   <option value="uv">UV</option>
                 </select>
+              </label>
+              <label className="background-control">
+                <span>Background</span>
+                <select
+                  value={backgroundPresetId}
+                  onChange={(event) =>
+                    handleBackgroundPresetChange(event.target.value as BackgroundPresetId)
+                  }
+                >
+                  {BACKGROUND_PRESETS.map((preset) => (
+                    <option key={preset.id} value={preset.id}>
+                      {preset.label}
+                    </option>
+                  ))}
+                  <option value="custom">Custom</option>
+                </select>
+                <input
+                  type="color"
+                  value={customBackgroundColor}
+                  onChange={(event) =>
+                    handleCustomBackgroundColorChange(event.target.value)
+                  }
+                  aria-label="Custom background color"
+                />
               </label>
               <label className="toggle-chip">
                 <input

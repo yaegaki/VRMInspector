@@ -32,8 +32,9 @@ export function createSceneController(
   options: CreateSceneControllerOptions = {},
 ): SceneController {
   const scene = new THREE.Scene()
-  scene.background = new THREE.Color('#101418')
-  scene.fog = new THREE.Fog('#101418', 10, 30)
+  const backgroundColor = new THREE.Color('#101418')
+  scene.background = backgroundColor.clone()
+  scene.fog = new THREE.Fog(backgroundColor, 10, 30)
 
   const camera = new THREE.PerspectiveCamera(
     35,
@@ -220,6 +221,14 @@ export function createSceneController(
         })
       })
     })
+  }
+
+  function applyBackgroundColor(color: string) {
+    backgroundColor.set(color)
+    scene.background = backgroundColor.clone()
+    if (scene.fog instanceof THREE.Fog) {
+      scene.fog.color.copy(backgroundColor)
+    }
   }
 
   function getHelperVisibility(object: THREE.Object3D) {
@@ -580,6 +589,9 @@ export function createSceneController(
     },
     setDebugMode(mode) {
       applyDebugMode(mode)
+    },
+    setBackgroundColor(color) {
+      applyBackgroundColor(color)
     },
     setSpringBoneHelpersVisible(visible) {
       springBoneHelpersVisible = visible
